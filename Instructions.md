@@ -35,4 +35,3 @@ For the test files, compile and run `setSolverTest.cpp` separately:
 4. **setSolverTest.cpp**:
    - Unit tests for `SetSolverSquareSet`, including tests for initialization, removing values, checking for values, and determining if a cell has been solved. 
 
-This project demonstrates logical constraint solving with C++ and uses basic techniques for validating program correctness through test cases.
