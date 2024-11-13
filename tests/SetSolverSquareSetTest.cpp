@@ -1,5 +1,5 @@
 #include <iostream>
-#include "SetSolverSquareSet.h"
+#include "../include/SetSolverSquareSet.h"
 
 void testConstructor() {
     SetSolverSquareSet square;

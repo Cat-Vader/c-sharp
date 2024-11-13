@@ -9,257 +9,228 @@
 using std::vector;
 using std::string;
 
-// Helper function to split strings by a delimiter without using <sstream>
-vector<string> splitString(const string& str, char delimiter = ' ') {
-    vector<string> tokens;
-    size_t start = 0;
-    size_t end = str.find(delimiter);
-
-    while (end != string::npos) {
-        if (end != start) { // Avoid adding empty strings
-            tokens.push_back(str.substr(start, end - start));
-        }
-        start = end + 1;
-        end = str.find(delimiter, start);
-    }
-
-    if (start < str.length()) { // Add the last token
-        tokens.push_back(str.substr(start));
-    }
-
-    return tokens;
-}
-
-class SetSolver
-{
+class SetSolver {
 private:
     int boardSize = 9;
     vector<vector<SetSolverSquareSet>> board;
 
-public:
-
-    void PopulateBoard(vector<string> skeletonBoard)
-    {
-        if (skeletonBoard.size() != boardSize) {
-            std::cerr << "Error: The board must have exactly " << boardSize << " rows.\n";
-            return;
-        }
-
-        // Initialize the board
-        board.assign(boardSize, vector<SetSolverSquareSet>(boardSize));
-
-        for (int row = 0; row < boardSize; ++row) {
-            string rowString = skeletonBoard[row];
-            vector<string> cells = splitString(rowString);
-
-            if (cells.size() != boardSize) {
-                std::cerr << "Error: Row " << row << " does not have " << boardSize << " cells.\n";
-                return;
-            }
-
-            for (int col = 0; col < boardSize; ++col) {
-                string cell = cells[col];
-
-                if (cell == "0") {
-                    // Empty black square
-                    board[row][col].cellValue = 0; // Using 0 to represent empty black square
-                    board[row][col].set.clear();   // No possible values
-                }
-                else if (cell == "*") {
-                    // Empty white square
-                    board[row][col] = SetSolverSquareSet(); // Initializes with all possible values
-                }
-                else if (cell[0] == '-') {
-                    // Black square with a hint (negative number)
-                    int hint = std::stoi(cell);
-                    board[row][col].setValue(hint); // Stores the hint value (negative)
-                    board[row][col].set.clear();    // No possible values
-                }
-                else {
-                    // Filled white square
-                    int value = std::stoi(cell);
-                    board[row][col].setValue(value); // Sets the fixed value
-                }
+    // Helper: Find minimum value in a vector
+    int findMin(const vector<int>& numbers) const {
+        int min = numbers[0];
+        for (size_t i = 1; i < numbers.size(); ++i) {
+            if (numbers[i] < min) {
+                min = numbers[i];
             }
         }
+        return min;
     }
 
-    int ReturnValue(size_t row, size_t col)
-    {
-        if (row >= boardSize || col >= boardSize) {
-            return -1; // Out of bounds
+    // Helper: Find maximum value in a vector
+    int findMax(const vector<int>& numbers) const {
+        int max = numbers[0];
+        for (size_t i = 1; i < numbers.size(); ++i) {
+            if (numbers[i] > max) {
+                max = numbers[i];
+            }
         }
-
-        return board[row][col].getValue();
+        return max;
     }
 
-    void Solve()
-    {
-        initializePossibleValues();
-
-        bool changesMade;
-        do {
-            changesMade = applyConstraints();
-        } while (changesMade);
-
-        if (!isBoardSolved()) {
-            if (backtrackSolve()) {
-                std::cout << "Solution Found:\n";
-                printBoard();
-            }
-            else {
-                std::cout << "No valid solution exists.\n";
+    // Helper: Count occurrences of a value in a vector
+    int countOccurrences(const vector<int>& numbers, int value) const {
+        int count = 0;
+        for (size_t i = 0; i < numbers.size(); ++i) {
+            if (numbers[i] == value) {
+                ++count;
             }
         }
-        else {
-            std::cout << "Board Solved!\n";
-        }
+        return count;
     }
 
-private:
+    // Check if the numbers form an uninterrupted set
+    bool isSetUninterrupted(const vector<int>& numbers) const {
+        if (numbers.empty()) return true;
 
-    void initializePossibleValues()
-    {
-        for (int row = 0; row < boardSize; ++row) {
-            for (int col = 0; col < boardSize; ++col) {
-                int cellValue = board[row][col].getValue();
-                if (cellValue == -99) {
-                    // Empty white square; possible values already initialized in constructor
-                    // No action needed
-                }
-                else if (cellValue == 0 || cellValue < -1) {
-                    // Empty black square or black square with a hint; no possible values
-                    board[row][col].set.clear();
-                }
-                else if (cellValue > 0) {
-                    // Filled white square; possible values set to the fixed value
-                    board[row][col].setPossibleValues({ cellValue });
-                }
-            }
-        }
-    }
+        int min = findMin(numbers);
+        int max = findMax(numbers);
+        int expectedCount = max - min + 1;
 
-    bool applyConstraints()
-    {
-        bool changesMade = false;
-
-        for (int row = 0; row < boardSize; ++row) {
-            for (int col = 0; col < boardSize; ++col) {
-                int cellValue = board[row][col].getValue();
-                if (cellValue < 0 && cellValue != -99) {
-                    // Hint cell (black square with a hint)
-                    int hint = -cellValue;
-                    // Remove the hint value from possible values in the same row and column
-                    for (int i = 0; i < boardSize; ++i) {
-                        if (i != col && board[row][i].removePossibleValue(hint)) {
-                            changesMade = true;
-                        }
-                        if (i != row && board[i][col].removePossibleValue(hint)) {
-                            changesMade = true;
-                        }
-                    }
-                }
-                else if (cellValue > 0) {
-                    // Filled white square
-                    int value = cellValue;
-                    // Remove the value from possible values in the same row and column
-                    for (int i = 0; i < boardSize; ++i) {
-                        if (i != col && board[row][i].removePossibleValue(value)) {
-                            changesMade = true;
-                        }
-                        if (i != row && board[i][col].removePossibleValue(value)) {
-                            changesMade = true;
-                        }
-                    }
-                }
-            }
+        if (numbers.size() != static_cast<size_t>(expectedCount)) {
+            return false;
         }
 
-        // Assign cells with only one possible value
-        for (int row = 0; row < boardSize; ++row) {
-            for (int col = 0; col < boardSize; ++col) {
-                if (board[row][col].isEmptyWhiteCell()) {
-                    if (board[row][col].isSolved()) {
-                        int value = board[row][col].getOnlyPossibleValue();
-                        board[row][col].setValue(value);
-                        changesMade = true;
-                    }
-                }
-            }
-        }
-
-        return changesMade;
-    }
-
-    bool isBoardSolved() const
-    {
-        for (int row = 0; row < boardSize; ++row) {
-            for (int col = 0; col < boardSize; ++col) {
-                if (board[row][col].isEmptyWhiteCell()) {
-                    return false;
-                }
+        for (int val = min; val <= max; ++val) {
+            if (countOccurrences(numbers, val) != 1) {
+                return false;
             }
         }
         return true;
     }
 
-    bool backtrackSolve()
-    {
-        int minPossibilities = 10; // More than the maximum possible
-        int row = -1, col = -1;
+    // Apply initial constraints from hints and filled cells
+    void applyInitialConstraints() {
+        for (int row = 0; row < boardSize; ++row) {
+            for (int col = 0; col < boardSize; ++col) {
+                int cellValue = board[row][col].getValue();
 
-        // Find the cell with the fewest possibilities
-        for (int r = 0; r < boardSize; ++r) {
-            for (int c = 0; c < boardSize; ++c) {
-                if (board[r][c].isEmptyWhiteCell()) {
-                    int possibilities = board[r][c].possibleValuesCount();
-                    if (possibilities < minPossibilities) {
-                        minPossibilities = possibilities;
-                        row = r;
-                        col = c;
+                if (cellValue < 0) { // Black square with a hint
+                    int hint = -cellValue;
+                    for (int i = 0; i < boardSize; ++i) {
+                        if (board[row][i].isEmptyWhiteCell()) {
+                            board[row][i].removeValue(hint);
+                        }
+                        if (board[i][col].isEmptyWhiteCell()) {
+                            board[i][col].removeValue(hint);
+                        }
+                    }
+                } else if (cellValue > 0 && cellValue != 99) { // Filled white square
+                    for (int i = 0; i < boardSize; ++i) {
+                        if (board[row][i].isEmptyWhiteCell()) {
+                            board[row][i].removeValue(cellValue);
+                        }
+                        if (board[i][col].isEmptyWhiteCell()) {
+                            board[i][col].removeValue(cellValue);
+                        }
                     }
                 }
             }
         }
+    }
 
-        // If no cells are left to fill, the board is solved
-        if (row == -1 && col == -1) return true;
+    // Solve the board using backtracking
+    bool solveBoard() {
+        int row = -1, col = -1;
+        if (!findEmptyCell(row, col)) {
+            return true; // Board is solved
+        }
 
-        // Attempt each possible value for the chosen cell
-        auto currentPossibilities = board[row][col].getPossibleValues();
-        for (int value : currentPossibilities) {
-            // Make a copy of the board
-            vector<vector<SetSolverSquareSet>> boardCopy = board;
+        vector<int> possibleValues = board[row][col].getPossibleValues();
+        for (int num : possibleValues) {
+            if (isValidPlacement(row, col, num)) {
+                board[row][col].setValue(num);
+                if (solveBoard()) {
+                    return true;
+                }
+                board[row][col].setValue(99); // Backtrack
+                board[row][col].setPossibleValues(possibleValues);
+            }
+        }
 
-            // Assign the value
-            board[row][col].setValue(value);
-            board[row][col].setPossibleValues({ value });
+        return false;
+    }
 
-            // Apply constraints
-            if (applyConstraints()) {
-                if (backtrackSolve()) {
+    // Find an empty cell (returns true if found)
+    bool findEmptyCell(int& row, int& col) const {
+        for (int r = 0; r < boardSize; ++r) {
+            for (int c = 0; c < boardSize; ++c) {
+                if (board[r][c].isEmptyWhiteCell() && !board[r][c].isSolved()) {
+                    row = r;
+                    col = c;
                     return true;
                 }
             }
-
-            // Revert changes
-            board = boardCopy;
         }
-
-        return false; // No valid solution found
+        return false;
     }
 
-    void printBoard() const
-    {
+    // Check if placing a number at (row, col) is valid
+    bool isValidPlacement(int row, int col, int num) const {
+        for (int i = 0; i < boardSize; ++i) {
+            if (board[row][i].getValue() == num || board[i][col].getValue() == num) {
+                return false;
+            }
+        }
+
+        vector<int> rowCompartment = collectCompartmentNumbers(row, col, /*isRow=*/true, num);
+        if (!isSetUninterrupted(rowCompartment)) {
+            return false;
+        }
+
+        vector<int> colCompartment = collectCompartmentNumbers(row, col, /*isRow=*/false, num);
+        if (!isSetUninterrupted(colCompartment)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    // Collect numbers in a compartment
+    vector<int> collectCompartmentNumbers(int row, int col, bool isRow, int num) const {
+        vector<int> compartmentNumbers;
+
+        int start = isRow ? col : row;
+        int end = start;
+
+        while (start > 0 && board[isRow ? row : start - 1][isRow ? start - 1 : col].getValue() != 0) {
+            --start;
+        }
+
+        while (end < boardSize - 1 && board[isRow ? row : end + 1][isRow ? end + 1 : col].getValue() != 0) {
+            ++end;
+        }
+
+        for (int i = start; i <= end; ++i) {
+            int val = board[isRow ? row : i][isRow ? i : col].getValue();
+            if (val > 0 && val != 99) {
+                compartmentNumbers.push_back(val);
+            }
+        }
+
+        compartmentNumbers.push_back(num);
+        return compartmentNumbers;
+    }
+
+public:
+    // Populate the board from the skeleton board
+    void populateBoard(const vector<string>& skeletonBoard) {
+        board.resize(boardSize, vector<SetSolverSquareSet>(boardSize));
+
         for (int row = 0; row < boardSize; ++row) {
             for (int col = 0; col < boardSize; ++col) {
-                std::cout << board[row][col].getValue() << " ";
+                char cell = skeletonBoard[row][col];
+                if (cell == '*') {
+                    board[row][col] = SetSolverSquareSet();
+                } else if (cell == '0') {
+                    board[row][col] = SetSolverSquareSet(0);
+                } else if (cell == '-') {
+                    int hint = -(skeletonBoard[row][++col] - '0');
+                    board[row][col] = SetSolverSquareSet(hint);
+                } else {
+                    int value = cell - '0';
+                    board[row][col] = SetSolverSquareSet(value);
+                }
+            }
+        }
+    }
+
+    // Solve the board
+    void solve() {
+        applyInitialConstraints();
+        solveBoard();
+    }
+
+    // Print the board
+    void printBoard() const {
+        for (int row = 0; row < boardSize; ++row) {
+            for (int col = 0; col < boardSize; ++col) {
+                int val = board[row][col].getValue();
+                if (val == 99) {
+                    std::cout << "* ";
+                } else if (val == 0) {
+                    std::cout << "0 ";
+                } else {
+                    std::cout << val << " ";
+                }
             }
             std::cout << "\n";
         }
         std::cout << "-------------------\n";
     }
+
+    // Return the value of a cell
+    int returnCellValue(int row, int col) const {
+        return board[row][col].getValue();
+    }
 };
 
 #endif /* SetSolver_h */
-
